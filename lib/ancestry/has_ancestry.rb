@@ -45,7 +45,7 @@ module Ancestry
       scope :subtree_of, lambda { |object| where(subtree_conditions(object)) }
       scope :siblings_of, lambda { |object| where(sibling_conditions(object)) }
       scope :ordered_by_ancestry, Proc.new { |order|
-        if %w(mysql mysql2 sqlite sqlite3 postgresql).include?(connection.adapter_name.downcase) && ActiveRecord::VERSION::MAJOR >= 5
+        if %w(mysql mysql2 sqlite sqlite3 postgresql).include?(connection_config[:adapter].downcase) && ActiveRecord::VERSION::MAJOR >= 5
           reorder(
             Arel::Nodes::Ascending.new(Arel::Nodes::NamedFunction.new('COALESCE', [arel_table[ancestry_column], Arel.sql("''")])),
             order
