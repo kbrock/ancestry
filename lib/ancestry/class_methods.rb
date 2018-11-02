@@ -64,29 +64,25 @@ module Ancestry
 
     # Pseudo-preordered array of nodes.  Children will always follow parents,
     # for ordering nodes within a rank provide block, eg. Node.sort_by_ancestry(Node.all) {|a, b| a.rank <=> b.rank}.
-    def sort_by_ancestry(nodes, &block)
-      arranged = nodes if nodes.is_a?(Hash)
-
-      unless arranged
+    # TODO: Fix case when parents are missing and a sort block is specified
+    def sort_by_ancestry(nodes, sorted_nodes = [], &block)
+      if nodes.is_a?(Hash) || (nodes.first.is_a?(Array) && nodes.first.size == 2)# enumerated hashes are array of arrays
+        arranged = nodes
+      else
         presorted_nodes = nodes.sort do |a, b|
-          a_cestry, b_cestry = a.ancestry || '0', b.ancestry || '0'
-
-          if block_given? && a_cestry == b_cestry
-            yield a, b
-          else
-            a_cestry <=> b_cestry
-          end
+          rank = (a.ancestry || '0') <=> (b.ancestry || '0')
+          rank = yield(a, b) if rank == 0 && block_given?
+          rank
         end
 
         arranged = arrange_nodes(presorted_nodes)
       end
 
-      arranged.inject([]) do |sorted_nodes, pair|
-        node, children = pair
+      arranged.each do |(node, children)|
         sorted_nodes << node
-        sorted_nodes += sort_by_ancestry(children, &block) unless children.blank?
-        sorted_nodes
+        sort_by_ancestry(children, sorted_nodes, &block) unless children.blank?
       end
+      sorted_nodes
     end
 
     # Integrity checking
