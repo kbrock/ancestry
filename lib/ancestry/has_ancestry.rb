@@ -44,16 +44,18 @@ module Ancestry
       scope :descendants_of, lambda { |object| where(descendant_conditions(object)) }
       scope :subtree_of, lambda { |object| where(subtree_conditions(object)) }
       scope :siblings_of, lambda { |object| where(sibling_conditions(object)) }
-      scope :ordered_by_ancestry, Proc.new { |order|
-        if %w(mysql mysql2 sqlite sqlite3 postgresql).include?(connection_config[:adapter].downcase) && ActiveRecord::VERSION::MAJOR >= 5
+      if %w(mysql mysql2 sqlite sqlite3 postgresql).include?(connection_config[:adapter].downcase) && ActiveRecord::VERSION::MAJOR >= 5
+        scope :ordered_by_ancestry, Proc.new { |order|
           reorder(
             Arel::Nodes::Ascending.new(Arel::Nodes::NamedFunction.new('COALESCE', [arel_table[ancestry_column], Arel.sql("''")])),
             order
           )
-        else
+        }
+      else
+        scope :ordered_by_ancestry, Proc.new { |order|
           reorder(Arel.sql("(CASE WHEN #{connection.quote_table_name(table_name)}.#{connection.quote_column_name(ancestry_column)} IS NULL THEN 0 ELSE 1 END), #{connection.quote_table_name(table_name)}.#{connection.quote_column_name(ancestry_column)}"), order)
-        end
-      }
+        }
+      end
       scope :ordered_by_ancestry_and, Proc.new { |order| ordered_by_ancestry(order) }
       scope :path_of, lambda { |object| to_node(object).path }
 
