@@ -79,7 +79,12 @@ class TouchingTest < ActiveSupport::TestCase
       child_1_2        = model.create!(:updated_at => way_back, :parent => parent_1)
       grandchild_1_1_1 = model.create!(:updated_at => way_back, :parent => child_1_1)
 
-      grandchild_1_1_1.children.create!
+      # a problem - children scope not passed in
+      # these 2 copies work:
+      # a. model.create!(:updated_at => way_back, :parent => grandchild_1_1_1)
+      grandchild_1_1_1.children.scoping { model.create! }
+      # for some reason broken:
+      # grandchild_1_1_1.children.create!
 
       assert_equal way_back, child_1_2.reload.updated_at,    "unrelated record was touched"
 

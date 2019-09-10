@@ -79,7 +79,7 @@ class ScopesTest < ActiveSupport::TestCase
   def test_node_creation_through_scope
     AncestryTestDatabase.with_model do |model|
       node = model.create!
-      child = node.children.create
+      child = node.children.scoping { model.create }
       assert_equal node, child.parent
 
       other_child = child.siblings.create!
@@ -117,14 +117,14 @@ class ScopesTest < ActiveSupport::TestCase
       end
 
       parent = model.create
-      assert parent.children.create
+      assert parent.children.scoping { model.create }
     end
   end
 
   def test_create_children_from_root
     AncestryTestDatabase.with_model(:extra_columns => {:name => :string}) do |model|
       root = model.create
-      record = root.children.create
+      record = root.children.scoping { model.create }
       # this should not throw an exception
       record.reload.parent.children.find_or_create_by! :name => 'abc'
     end
