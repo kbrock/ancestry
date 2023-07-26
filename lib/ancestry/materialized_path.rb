@@ -71,12 +71,16 @@ module Ancestry
       where(t[ancestry_column].eq(node[ancestry_column].presence))
     end
 
-    def ordered_by_ancestry(order = nil)
-      if %w(mysql mysql2 sqlite sqlite3).include?(connection.adapter_name.downcase)
+    if %w(mysql mysql2 sqlite sqlite3).include?(connection.adapter_name.downcase)
+      def ordered_by_ancestry(order = nil)
         reorder(arel_table[ancestry_column], order)
-      elsif %w(postgresql oracleenhanced).include?(connection.adapter_name.downcase) && ActiveRecord::VERSION::STRING >= "6.1"
+      end
+    elsif %w(postgresql oracleenhanced).include?(connection.adapter_name.downcase) && ActiveRecord::VERSION::STRING >= "6.1"
+      def ordered_by_ancestry(order = nil)
         reorder(Arel::Nodes::Ascending.new(arel_table[ancestry_column]).nulls_first, order)
-      else
+      end
+    else
+      def ordered_by_ancestry(order = nil)
         reorder(
           Arel::Nodes::Ascending.new(Arel::Nodes::NamedFunction.new('COALESCE', [arel_table[ancestry_column], Arel.sql("''")])),
           order
