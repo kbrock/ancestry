@@ -3,16 +3,25 @@
 Doing our best at supporting [SemVer](http://semver.org/) with
 a nice looking [Changelog](http://keepachangelog.com).
 
-## Version [HEAD] <sub><sup>Unreleased</sub></sup>
+## Version [5.0.0] <sub><sup>2026-02-08</sub></sup>
 
+* Fix: `siblings` now excludes self [#710](https://github.com/stefankroes/ancestry/pull/710) (thx @chikamichi)
 * Introduce `orphan_strategy: :none` [#658](https://github.com/stefankroes/ancestry/pull/658)
 * Introduce `rebuild_counter_cache!` to reset counter caches. [#663](https://github.com/stefankroes/ancestry/pull/663) [#668](https://github.com/stefankroes/ancestry/pull/668) (thx @RongRongTeng)
+* Introduce `in_subtree_of?` instance method [#680](https://github.com/stefankroes/ancestry/pull/680) (thx @instrumentl)
+* Optimize `has_siblings?` to use `exists?` [#693](https://github.com/stefankroes/ancestry/pull/693) (thx @a5-stable)
+* Fix: humanise model name in error messages [#700](https://github.com/stefankroes/ancestry/pull/700) (thx @labeebklatif)
+* Fix: touch with sql update strategy
+* Introduce `update_strategy: :sql` hooks for extension developers
+* Added support for virtual depth column
 * Documentation fixes [#664](https://github.com/stefankroes/ancestry/pull/664) [#667](https://github.com/stefankroes/ancestry/pull/667) (thx @motokikando, @onerinas)
 * Introduce `build_cache_depth_sql!`, a sql alternative to `build_cache_depth` [#654](https://github.com/stefankroes/ancestry/pull/654)
 * Drop `ancestry_primary_key_format` [#649](https://github.com/stefankroes/ancestry/pull/649)
 * When destroying orphans, going from leafs up to node [#635](https://github.com/stefankroes/ancestry/pull/635) (thx @brendon)
 * Changed config setters to class readers [#633](https://github.com/stefankroes/ancestry/pull/633) (thx @kshurov)
 * Split apply_orphan_strategy into multiple methods [#632](https://github.com/stefankroes/ancestry/pull/633) [#633](https://github.com/stefankroes/ancestry/pull/617)
+* Ruby 3.4 support
+* Rails 8.0 support
 
 #### Notable features
 
@@ -29,6 +38,10 @@ jobs. If you need to do this in the ui, please use `cache_depth`.
 
 #### Breaking Changes
 
+* `siblings` no longer returns self. This is a bug fix, but does change behavior.
+* Dropped support for Rails < 6.1
+* Renamed internal methods to follow Rails conventions: `*_before_save` methods renamed to `*_before_last_save`
+  (e.g., `child_ancestry_before_save` => `child_ancestry_before_last_save`)
 * Options are no longer set via class methods. Using `has_ancestry` is now the only way to enable these features.
   These are all not part of the public API.
   * These are now class level read only accessors
@@ -353,7 +366,8 @@ Missed 2 commits (which are feature adds)
 * Validations
 
 
-[HEAD]: https://github.com/stefankroes/ancestry/compare/v4.3.0...HEAD
+[HEAD]: https://github.com/stefankroes/ancestry/compare/v5.0.0...HEAD
+[5.0.0]: https://github.com/stefankroes/ancestry/compare/v4.3.3...v5.0.0
 [4.3.3]: https://github.com/stefankroes/ancestry/compare/v4.3.2...v4.3.3
 [4.3.2]: https://github.com/stefankroes/ancestry/compare/v4.3.1...v4.3.2
 [4.3.1]: https://github.com/stefankroes/ancestry/compare/v4.3.0...v4.3.1
