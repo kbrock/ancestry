@@ -148,7 +148,7 @@ The yellow nodes are those returned by the method.
 | `child_of?`                   |`descendant_of?`                                     |`indirect_of?`                   |
 |**siblings**                   |**subtree**                                          |**path**                         |
 |![siblings](/img/siblings.png) |![subtree](/img/subtree.png)                         |![path](/img/path.png)           |
-| includes self                 |self..indirects                                      |root..self                       |
+| excludes self                 |self..indirects                                      |root..self                       |
 |`sibling_ids`                  |`subtree_ids`                                        |`path_ids`                       |
 |`has_siblings?`                |                                                     |                                 |
 |`sibling_of?(node)`            |`in_subtree_of?`                                     |                                 |

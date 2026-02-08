@@ -30,8 +30,8 @@ class ScopesTest < ActiveSupport::TestCase
         assert_equal test_node.subtree.to_a, model.subtree_of(test_node).to_a
         assert_equal test_node.subtree.to_a, model.subtree_of(test_node.id).to_a
         # Assertions for siblings_of named scope
-        assert_equal test_node.siblings.to_a, model.siblings_of(test_node).to_a
-        assert_equal test_node.siblings.to_a, model.siblings_of(test_node.id).to_a
+        assert_equal test_node.siblings.to_a, model.siblings_of(test_node).where.not(model.primary_key => test_node.id).to_a
+        assert_equal test_node.siblings.to_a, model.siblings_of(test_node.id).where.not(model.primary_key => test_node.id).to_a
         # Assertions for path_of named scope
         assert_equal test_node.path.to_a, model.path_of(test_node).to_a
         assert_equal test_node.path.to_a, model.path_of(test_node.id).to_a
