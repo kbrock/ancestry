@@ -38,7 +38,7 @@ class TreeNavigationTest < ActiveSupport::TestCase
       assert_attributes node1, :children, [node11, node12]
       assert_attributes node1, :descendants, [node11, node111, node12]
       assert_attributes node1, :indirects, [node111]
-      assert_attributes node1, :siblings, [node1, node2]
+      assert_attributes node1, :siblings, [node2]
       assert_attributes node1, :subtree, [node1, node11, node111, node12]
       assert_attributes node1, :path, [node1]
       assert_equal(0, node1.depth)
@@ -51,7 +51,7 @@ class TreeNavigationTest < ActiveSupport::TestCase
       assert_attributes node11, :children, [node111]
       assert_attributes node11, :descendants, [node111]
       assert_attributes node11, :indirects, []
-      assert_attributes node11, :siblings, [node11, node12]
+      assert_attributes node11, :siblings, [node12]
       assert_attributes node11, :subtree, [node11, node111]
       assert_attributes node11, :path, [node1, node11]
       assert_equal(1, node11.depth)
@@ -64,7 +64,7 @@ class TreeNavigationTest < ActiveSupport::TestCase
       assert_attributes node111, :children, []
       assert_attributes node111, :descendants, []
       assert_attributes node111, :indirects, []
-      assert_attributes node111, :siblings, [node111], exists: false
+      assert_attributes node111, :siblings, [], exists: false
       assert_attributes node111, :subtree, [node111]
       assert_attributes node111, :path, [node1, node11, node111]
       assert_equal(2, node111.depth)
@@ -77,7 +77,7 @@ class TreeNavigationTest < ActiveSupport::TestCase
       assert_attributes node12, :children, []
       assert_attributes node12, :descendants, []
       assert_attributes node12, :indirects, []
-      assert_attributes node12, :siblings, [node11, node12]
+      assert_attributes node12, :siblings, [node11]
       assert_attributes node12, :subtree, [node12]
       assert_attributes node12, :path, [node1, node12]
       assert_equal(1, node12.depth)
@@ -90,7 +90,7 @@ class TreeNavigationTest < ActiveSupport::TestCase
       assert_attributes node2, :children, [node21]
       assert_attributes node2, :descendants, [node21]
       assert_attributes node2, :indirects, []
-      assert_attributes node2, :siblings, [node1, node2]
+      assert_attributes node2, :siblings, [node1]
       assert_attributes node2, :subtree, [node2, node21]
       assert_attributes node2, :path, [node2]
       assert_equal(0, node2.depth)
@@ -103,7 +103,7 @@ class TreeNavigationTest < ActiveSupport::TestCase
       assert_attributes node21, :children, []
       assert_attributes node21, :descendants, []
       assert_attributes node21, :indirects, []
-      assert_attributes node21, :siblings, [node21], exists: false
+      assert_attributes node21, :siblings, [], exists: false
       assert_attributes node21, :subtree, [node21]
       assert_attributes node21, :path, [node2, node21]
       assert_equal(1, node21.depth)

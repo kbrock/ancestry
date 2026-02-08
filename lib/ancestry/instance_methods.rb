@@ -246,16 +246,15 @@ module Ancestry
     # Siblings
 
     def siblings
-      self.class.ancestry_base_class.siblings_of(self)
+      self.class.ancestry_base_class.siblings_of(self).where.not(self.class.primary_key => id)
     end
 
-    # NOTE: includes self
     def sibling_ids
       siblings.pluck(self.class.primary_key)
     end
 
     def has_siblings?
-      siblings.where.not(self.class.primary_key => id).exists?
+      siblings.exists?
     end
     alias_method :siblings?, :has_siblings?
 
