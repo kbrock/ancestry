@@ -12,10 +12,25 @@ module Ancestry
       base.send(:include, InstanceMethods)
     end
 
+    def ancestors_of(object)
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        t = arel_table
+        return where(t[primary_key].in(object.ancestor_ids))
+      end
+
+      ca_sql = child_ancestry_sql
+      joins(
+        "INNER JOIN (#{ancestor_scope(object).select(ancestry_column).to_sql}) ancestors_src" \
+        " ON ancestors_src.#{ancestry_column} LIKE #{concat(ca_sql, "'%'")}"
+      )
+    end
+
     def indirects_of(object)
-      t = arel_table
-      node = to_node(object)
-      where(t[ancestry_column].matches("#{node.child_ancestry}%#{ancestry_delimiter}%", nil, true))
+      sub = ancestor_scope(object).select("#{child_ancestry_sql} AS child_ancestry").to_sql
+      joins(
+        "INNER JOIN (#{sub}) indirects_src" \
+        " ON #{table_name}.#{ancestry_column} LIKE #{concat("indirects_src.child_ancestry", "'%#{ancestry_delimiter}%'")}"
+      )
     end
 
     def ordered_by_ancestry(order = nil)
@@ -26,12 +41,56 @@ module Ancestry
       arel_table[ancestry_column].matches("#{ancestry}%", nil, true)
     end
 
+    def descendants_of(object)
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        return where(descendant_conditions(object))
+      end
+
+      sub = ancestor_scope(object).select("#{child_ancestry_sql} AS child_ancestry").to_sql
+      joins(
+        "INNER JOIN (#{sub}) descendants_src" \
+        " ON #{table_name}.#{ancestry_column} LIKE #{concat("descendants_src.child_ancestry", "'%'")}"
+      )
+    end
+
+    def subtree_of(object)
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        return descendants_of(object).or(where(primary_key => object.id))
+      end
+
+      sub = ancestor_scope(object).select("#{primary_key} AS #{primary_key}, #{child_ancestry_sql} AS child_ancestry").to_sql
+      joins(
+        "INNER JOIN (#{sub}) subtree_src" \
+        " ON (#{table_name}.#{primary_key} = subtree_src.#{primary_key}" \
+        " OR #{table_name}.#{ancestry_column} LIKE #{concat("subtree_src.child_ancestry", "'%'")})"
+      )
+    end
+
+    def inpath_of(object)
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        t = arel_table
+        return where(t[primary_key].in(object.path_ids))
+      end
+
+      ca_sql = child_ancestry_sql
+      sub = ancestor_scope(object).select("#{primary_key} AS #{primary_key}, #{ancestry_column}").to_sql
+      joins(
+        "INNER JOIN (#{sub}) inpath_src" \
+        " ON (#{table_name}.#{primary_key} = inpath_src.#{primary_key}" \
+        " OR inpath_src.#{ancestry_column} LIKE #{concat(ca_sql, "'%'")})"
+      )
+    end
+
+    def descendant_conditions(object)
+      descendants_by_ancestry(object.child_ancestry)
+    end
+
     def ancestry_root
       ancestry_delimiter
     end
 
-    def child_ancestry_sql
-      concat("#{table_name}.#{ancestry_column}", "#{table_name}.#{primary_key}", "'#{ancestry_delimiter}'")
+    def child_ancestry_sql(tbl = table_name)
+      concat("#{tbl}.#{ancestry_column}", "#{tbl}.#{primary_key}", "'#{ancestry_delimiter}'")
     end
 
     def ancestry_depth_sql

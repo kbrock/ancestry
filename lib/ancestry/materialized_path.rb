@@ -10,40 +10,88 @@ module Ancestry
     end
 
     def path_of(object)
-      to_node(object).path
+      inpath_of(object)
     end
 
     def roots
       where(arel_table[ancestry_column].eq(ancestry_root))
     end
 
+    # Convert object to a scope suitable for subqueries.
+    # Accepts: ActiveRecord::Relation, record, array of records/IDs, or a single ID.
+    def ancestor_scope(object)
+      if object.is_a?(ActiveRecord::Relation)
+        object
+      elsif object.is_a?(ancestry_base_class)
+        unscoped_where { |scope| scope.where(primary_key => object.id) }
+      elsif object.is_a?(Array)
+        ids = object.map { |o| o.is_a?(ancestry_base_class) ? o.id : o }
+        unscoped_where { |scope| scope.where(primary_key => ids) }
+      else
+        unscoped_where { |scope| scope.where(primary_key => object) }
+      end
+    end
+
     def ancestors_of(object)
-      t = arel_table
-      node = to_node(object)
-      where(t[primary_key].in(node.ancestor_ids))
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        t = arel_table
+        return where(t[primary_key].in(object.ancestor_ids))
+      end
+
+      ca_sql = child_ancestry_sql
+      joins(
+        "INNER JOIN (#{ancestor_scope(object).select(ancestry_column).to_sql}) ancestors_src" \
+        " ON ancestors_src.#{ancestry_column} IS NOT NULL" \
+        " AND (ancestors_src.#{ancestry_column} = #{ca_sql}" \
+        " OR ancestors_src.#{ancestry_column} LIKE #{concat(ca_sql, "'#{ancestry_delimiter}%'")})"
+      )
     end
 
     def inpath_of(object)
-      t = arel_table
-      node = to_node(object)
-      where(t[primary_key].in(node.path_ids))
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        t = arel_table
+        return where(t[primary_key].in(object.path_ids))
+      end
+
+      ca_sql = child_ancestry_sql
+      sub = ancestor_scope(object).select("#{primary_key} AS #{primary_key}, #{ancestry_column}, #{child_ancestry_sql} AS child_ancestry").to_sql
+      joins(
+        "INNER JOIN (#{sub}) inpath_src" \
+        " ON (#{table_name}.#{primary_key} = inpath_src.#{primary_key}" \
+        " OR (inpath_src.#{ancestry_column} IS NOT NULL" \
+        " AND (inpath_src.#{ancestry_column} = #{ca_sql}" \
+        " OR inpath_src.#{ancestry_column} LIKE #{concat(ca_sql, "'#{ancestry_delimiter}%'")})))"
+      )
     end
 
     def children_of(object)
-      t = arel_table
-      node = to_node(object)
-      where(t[ancestry_column].eq(node.child_ancestry))
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        where(ancestry_column => object.child_ancestry)
+      else
+        where(ancestry_column => ancestor_scope(object).select(Arel.sql(child_ancestry_sql)))
+      end
     end
 
     # indirect = anyone who is a descendant, but not a child
     def indirects_of(object)
-      t = arel_table
-      node = to_node(object)
-      where(t[ancestry_column].matches("#{node.child_ancestry}#{ancestry_delimiter}%", nil, true))
+      sub = ancestor_scope(object).select("#{child_ancestry_sql} AS child_ancestry").to_sql
+      joins(
+        "INNER JOIN (#{sub}) indirects_src" \
+        " ON #{table_name}.#{ancestry_column} LIKE #{concat("indirects_src.child_ancestry", "'#{ancestry_delimiter}%'")}"
+      )
     end
 
     def descendants_of(object)
-      where(descendant_conditions(object))
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        return where(descendant_conditions(object))
+      end
+
+      sub = ancestor_scope(object).select("#{child_ancestry_sql} AS child_ancestry").to_sql
+      joins(
+        "INNER JOIN (#{sub}) descendants_src" \
+        " ON (#{table_name}.#{ancestry_column} = descendants_src.child_ancestry" \
+        " OR #{table_name}.#{ancestry_column} LIKE #{concat("descendants_src.child_ancestry", "'#{ancestry_delimiter}%'")})"
+      )
     end
 
     def descendants_by_ancestry(ancestry)
@@ -52,25 +100,33 @@ module Ancestry
     end
 
     def descendant_conditions(object)
-      node = to_node(object)
-      descendants_by_ancestry(node.child_ancestry)
+      descendants_by_ancestry(object.child_ancestry)
     end
 
     def descendant_before_last_save_conditions(object)
-      node = to_node(object)
-      descendants_by_ancestry(node.child_ancestry_before_last_save)
+      descendants_by_ancestry(object.child_ancestry_before_last_save)
     end
 
     def subtree_of(object)
-      t = arel_table
-      node = to_node(object)
-      descendants_of(node).or(where(t[primary_key].eq(node.id)))
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        return descendants_of(object).or(where(primary_key => object.id))
+      end
+
+      sub = ancestor_scope(object).select("#{primary_key} AS #{primary_key}, #{child_ancestry_sql} AS child_ancestry").to_sql
+      joins(
+        "INNER JOIN (#{sub}) subtree_src" \
+        " ON (#{table_name}.#{primary_key} = subtree_src.#{primary_key}" \
+        " OR #{table_name}.#{ancestry_column} = subtree_src.child_ancestry" \
+        " OR #{table_name}.#{ancestry_column} LIKE #{concat("subtree_src.child_ancestry", "'#{ancestry_delimiter}%'")})"
+      )
     end
 
     def siblings_of(object)
-      t = arel_table
-      node = to_node(object)
-      where(t[ancestry_column].eq(node[ancestry_column].presence))
+      if object.is_a?(ancestry_base_class) && !object.is_a?(ActiveRecord::Relation)
+        where(ancestry_column => object.read_attribute(ancestry_column))
+      else
+        where(ancestry_column => ancestor_scope(object).select(Arel.sql(ancestry_sql)))
+      end
     end
 
     def ordered_by_ancestry(order = nil)
@@ -94,10 +150,14 @@ module Ancestry
       nil
     end
 
-    def child_ancestry_sql
+    def ancestry_sql(tbl = table_name)
+      "#{tbl}.#{ancestry_column}"
+    end
+
+    def child_ancestry_sql(tbl = table_name)
       %{
-        CASE WHEN #{table_name}.#{ancestry_column} IS NULL THEN #{concat("#{table_name}.#{primary_key}")}
-        ELSE      #{concat("#{table_name}.#{ancestry_column}", "'#{ancestry_delimiter}'", "#{table_name}.#{primary_key}")}
+        CASE WHEN #{tbl}.#{ancestry_column} IS NULL THEN #{concat("#{tbl}.#{primary_key}")}
+        ELSE      #{concat("#{tbl}.#{ancestry_column}", "'#{ancestry_delimiter}'", "#{tbl}.#{primary_key}")}
         END
       }
     end
