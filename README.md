@@ -168,6 +168,7 @@ The `has_ancestry` method supports the following options:
                            :materialized_path   1/2/3, root nodes ancestry=nil (default)
                            :materialized_path2  /1/2/3/, root nodes ancestry=/ (preferred)
                            :ltree               1.2.3, root nodes ancestry='' (PostgreSQL only)
+                           :array               {1,2,3}, root nodes ancestry={} (PostgreSQL only)
     :orphan_strategy       How to handle children of a destroyed node:
                            :destroy   All children are destroyed as well (default)
                            :rootify   The children of the destroyed node become root nodes
@@ -431,6 +432,7 @@ You can choose from the following ancestry formats:
 - `:materialized_path2` - newer format. Use this if it is a new column
 - `:materialized_path3` - like mp2 but root is `""` instead of `"/"`
 - `:ltree` - PostgreSQL ltree type with GiST indexing
+- `:array` - PostgreSQL integer array. No string parsing, native array operations
 
 ```
 :materialized_path    1/2/3,  root nodes ancestry=nil
@@ -441,58 +443,67 @@ You can choose from the following ancestry formats:
     descendants SQL: ancestry LIKE '1/2/3/%'
 :ltree               1.2.3, root nodes ancestry=''
     descendants SQL: ancestry <@ '1.2.3'
+:array               {1,2,3}, root nodes ancestry={}
+    descendants SQL: ancestry[1:3] = ARRAY[1,2,3] AND array_length(ancestry, 1) >= 3
 ```
 
 If you are unsure, choose `:materialized_path2`. It allows a not NULL column,
 faster descendant queries, has one less `OR` statement in the queries, and
 the path can be formed easily in a database query for added benefits.
 
-For PostgreSQL users who want native ltree indexing, see [Ltree Format](#ltree-format-postgresql).
+For PostgreSQL users, see [PostgreSQL Formats](#postgresql-formats).
 
 There is more discussion in [Internals](#internals) or [Migrating ancestry format](#migrate-ancestry-format)
 For migrating from `materialized_path` to `materialized_path2` see [Ancestry Column](#ancestry-column)
 
-## Ltree Format (PostgreSQL)
+## PostgreSQL Formats
+
+### Ltree
 
 The `:ltree` format stores ancestry using PostgreSQL's
 [ltree](https://www.postgresql.org/docs/current/ltree.html) type. This uses
 dot-separated labels (`1.2.3`) and enables GiST-indexed descendant queries
 via the `<@` operator.
 
-### Migration
-
 ```ruby
-class CreateTreeNodes < ActiveRecord::Migration[7.0]
-  def change
-    enable_extension 'ltree'
-    create_table :tree_nodes do |t|
-      t.column :ancestry, :ltree, null: false, default: ''
-      t.index :ancestry, using: :gist
-    end
-  end
+# Migration
+enable_extension 'ltree'
+create_table :tree_nodes do |t|
+  t.column :ancestry, :ltree, null: false, default: ''
+  t.index :ancestry, using: :gist
 end
+
+# Model
+has_ancestry ancestry_format: :ltree
 ```
-
-### Model
-
-```ruby
-class TreeNode < ApplicationRecord
-  has_ancestry ancestry_format: :ltree
-end
-```
-
-### Advantages
 
 - GiST-indexed descendant queries — `<@` operator instead of `LIKE`
 - No collation issues — ltree has its own comparison semantics
-- Native depth via `nlevel()` — no string counting
-- Root extraction via `subpath()` — no string parsing
+- Requires the `ltree` extension
+- Integer primary keys only
 
-### Limitations
+### Array
 
-- PostgreSQL only
-- Requires the `ltree` extension (`enable_extension 'ltree'`)
-- Integer primary keys only (ltree labels are dot-separated integers)
+The `:array` format stores ancestry as a PostgreSQL `integer[]` column. This
+eliminates string parsing and enables native array operations.
+
+```ruby
+# Migration
+create_table :tree_nodes do |t|
+  t.integer :ancestry, array: true, null: false, default: []
+  t.index :ancestry                   # btree for exact matches and ordering
+  t.index :ancestry, using: :gin,     # GIN for array containment queries
+         name: "index_tree_nodes_on_ancestry_gin"
+end
+
+# Model
+has_ancestry ancestry_format: :array
+```
+
+- No string parsing — ancestry values are native Ruby arrays
+- No collation issues — integer comparison, not string comparison
+- Correct numeric sort order — `[1, 2]` sorts before `[1, 10]`
+- Column type must match your primary key type (`integer` or `bigint`)
 
 ## Migrating Ancestry Format
 
